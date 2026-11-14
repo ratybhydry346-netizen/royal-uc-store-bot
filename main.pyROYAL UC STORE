@@ -1,0 +1,102 @@
+
+import os
+import time
+import requests
+
+TOKEN = os.getenv("RUBIKA_TOKEN", "")
+ADMIN_ID = os.getenv("ADMIN_CHAT_ID", "")
+
+CARD = "شماره کارت خودت"
+OWNER = "نام صاحب کارت"
+
+URL = f"https://botapi.rubika.ir/v3/{TOKEN}"
+
+products = {
+    "60 یوسی": "260000 تومان",
+    "120 یوسی": "530000 تومان",
+    "180 یوسی": "750000 تومان",
+    "325 یوسی": "1280000 تومان",
+    "660 یوسی": "2560000 تومان",
+    "720 یوسی": "2950000 تومان",
+    "985 یوسی": "3850000 تومان",
+    "1320 یوسی": "5000000 تومان",
+    "1800 یوسی": "6300000 تومان",
+    "2460 یوسی": "8950000 تومان",
+    "3850 یوسی": "12550000 تومان",
+    "8100 یوسی": "24800000 تومان"
+}
+
+def send(chat_id, text):
+    requests.post(
+        URL + "/sendMessage",
+        json={"chat_id": chat_id, "text": text},
+        timeout=20
+    )
+
+def main():
+    offset = None
+
+    while True:
+        try:
+            data = {}
+            if offset:
+                data["offset_id"] = offset
+
+            result = requests.post(
+                URL + "/getUpdates",
+                json=data,
+                timeout=30
+            ).json()
+
+            for update in result.get("data", {}).get("updates", []):
+                message = update.get("new_message", {})
+                chat_id = message.get("chat_id")
+                text = message.get("text", "").strip()
+
+                if not chat_id:
+                    continue
+
+                if text in ["/start", "شروع"]:
+                    send(
+                        chat_id,
+                        "👑 به ROYAL UC STORE خوش آمدید!\n\n"
+                        + "\n".join(
+                            f"{name} : {price}"
+                            for name, price in products.items()
+                        )
+                        + "\n\nنام بسته موردنظر را بفرستید."
+                    )
+
+                elif text in products:
+                    send(
+                        chat_id,
+                        f"سفارش: {text}\n"
+                        f"مبلغ: {products[text]}\n\n"
+                        f"شماره کارت: {CARD}\n"
+                        f"به نام: {OWNER}\n\n"
+                        "بعد از پرداخت، عکس رسید را ارسال کنید."
+                    )
+
+                elif message.get("file") or message.get("photo_file_id"):
+                    if ADMIN_ID:
+                        requests.post(
+                            URL + "/sendMessage",
+                            json={
+                                "chat_id": ADMIN_ID,
+                                "text": "رسید جدید از مشتری دریافت شد."
+                            },
+                            timeout=20
+                        )
+                    send(
+                        chat_id,
+                        "رسید دریافت شد. پس از بررسی مدیر اطلاع می‌دهیم."
+                    )
+
+            offset = result.get("data", {}).get("next_offset_id", offset)
+
+        except Exception as error:
+            print(error)
+            time.sleep(5)
+
+if __name__ == "__main__":
+    main()
